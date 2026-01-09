@@ -142,7 +142,7 @@ window.APP_CONFIG = Object.freeze({
         Crimi_2024: { id: 13, text: "Crimì F, Cabrelle G, Campi C, et al. Nodal staging with MRI after neoadjuvant chemo-radiotherapy for locally advanced rectal cancer: a fast and reliable method. Eur Radiol (2024) 34:3205–3214. https://doi.org/10.1007/s00330-023-10265-3" },
         Barbaro_2024: { id: 14, text: "Barbaro B, Carafa MRP, Minordi LM, et al. Magnetic resonance imaging for assessment of rectal cancer nodes after chemoradiotherapy: a single center experience. Radiother Oncol. 2024;193:110124. doi:10.1016/j.radonc.2024.110124" },
         Almlov_2020: { id: 15, text: "Almlöv K, Woisetschlager M, Loftås P, Hallböök O, Elander N, and Sandström P. MRI lymph node evaluation for prediction of metastases in rectal cancer. Anticancer Res. 2020;40(5):2757-63. doi:10.21873/anticanres.14247" },
-        Koh_2008: { id: 16, text: "Koh DM, Chau I, Tait D, Wotherspoon A, Cunningham D, Brown G. Evaluating mesorectal lymph nodes in rectal cancer before and after neoadjuvant chemoradiation using thin-section T2-weighted magnetic resonance imaging. Int J Radiat Oncol Biol Phys. 2008;71:456–461. doi:10.1016/j.ijrobp.2007.10.016" },
+        Koh_2008: { id: 16, text: "Koh DM, Chau I, Tait D, Wotherspoon A, Cunningham D, Brown G. Evaluating mesorectal lymph nodes in rectal cancer with use of thin-section T2-weighted magnetic resonance imaging. Int J Radiat Oncol Biol Phys. 2008;71:456–461. doi:10.1016/j.ijrobp.2007.10.016" },
         Zhuang_2021: { id: 17, text: "Zhuang Z, Zhang Y, Wei M, Yang X, Wang Z. Magnetic Resonance Imaging Evaluation of the Accuracy of Various Lymph Node Staging Criteria in Rectal Cancer: A Systematic Review and Meta-Analysis. Front Oncol. 2021;11:709070. doi:10.3389/fonc.2021.709070" },
         Brown_2003: { id: 18, text: "Brown G, Richards CJ, Bourne MW, et al. Morphologic predictors of lymph node status in rectal cancer with use of high-spatial-resolution MR imaging with histopathologic comparison. Radiology. 2003;227(2):371-377. doi: 10.1148/radiol.2272011747" },
         Bossuyt_2015: { id: 19, text: "Bossuyt PM, Reitsma JB, Bruns DE, et al. STARD 2015: An updated list of essential items for reporting diagnostic accuracy studies. BMJ. 2015;351:h5527. doi:10.1136/bmj.h5527" }
@@ -305,6 +305,15 @@ window.APP_CONFIG = Object.freeze({
                     significant: "statistically significant",
                     not_significant: "not statistically significant"
                 }
+            },
+            crossValidation: {
+                cardTitle: 'Internal Validation (5-Fold Cross-Validation)',
+                description: 'Results of the k-fold cross-validation (k=5). To prevent overfitting of the "Cohort-Optimised T2" criteria (optimism bias), the cohort is split into 5 random subsets (folds). In each step, the optimal T2 criteria are identified on 4 training folds (80% of data) and tested on the remaining independent test fold (20% of data). The reported "Mean AUC" represents the realistic, unbiased diagnostic performance expected on unseen data.',
+                meanAUC: { title: 'Mean AUC', text: 'The average Area Under the Curve across all 5 test folds. This value represents the robust, unbiased estimate of diagnostic performance on new data.' },
+                sdAUC: { title: 'Standard Deviation (SD)', text: 'Indicates the variability of performance across the 5 folds. A lower SD suggests stable and generalizable criteria.' },
+                fold: { title: 'Fold', text: 'The specific iteration of the cross-validation. Each fold represents a unique 20% slice of the cohort used as the test set.' },
+                testN: { title: 'Test N', text: 'Number of patients in this test fold (20% of the cohort).' },
+                cutoff: { title: 'Optimal Cut-off', text: 'The size threshold (short axis) identified as optimal in the corresponding training set (80% of data) and applied to this test fold to calculate the AUC.' }
             },
             dataTab: {
                 nr: "Patient's sequential ID number.",

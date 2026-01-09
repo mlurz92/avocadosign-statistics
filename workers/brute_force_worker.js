@@ -211,10 +211,14 @@ function generateCriteriaCombinations() {
         }
         generateValues(0, baseTemplate);
 
-        calculatedTotal += combinationsForSubset.length * LOGICS.length;
+        // Optimization: If only 1 criterion is active, 'AND' and 'OR' yield identical results.
+        // We avoid calculating both to prevent duplicate results and inflated progress counts.
+        const applicableLogics = (activeKeys.length === 1) ? ['AND'] : LOGICS;
+        
+        calculatedTotal += combinationsForSubset.length * applicableLogics.length;
 
         combinationsForSubset.forEach(combo => {
-            LOGICS.forEach(logic => {
+            applicableLogics.forEach(logic => {
                 const finalCombo = { logic: logic, criteria: cloneDeep(combo) };
                 CRITERIA_KEYS.forEach(k => {
                     if (!finalCombo.criteria[k]) finalCombo.criteria[k] = { active: false };
@@ -300,13 +304,14 @@ function runBruteForce() {
         let rank = 0;
         let displayedCount = 0;
         let lastScore = Infinity;
+        let countAtRank = 0;
 
         for (let i = 0; i < validResults.length; i++) {
             const currentScore = validResults[i].metricValue;
             const isNewRank = Math.abs(currentScore - lastScore) > precision;
 
             if (isNewRank) {
-                rank = i + 1;
+                rank++;
                 countAtRank = 1;
             } else {
                 countAtRank++;
@@ -316,11 +321,10 @@ function runBruteForce() {
             if (rank <= 10) {
                 topResults.push(validResults[i]);
             } else {
-                if (rank === 11 && Math.abs(currentScore - (topResults[topResults.length - 1]?.metricValue ?? -Infinity)) < precision) {
-                    topResults.push(validResults[i]);
-                } else {
-                    break;
-                }
+                // Also include ties for the last included rank (e.g. rank 11 if tied with 10? No, usually list cut off)
+                // Logic: Keep adding until we pass rank 10.
+                // If we are at rank 11, we stop.
+                break;
             }
         }
         const finalBest = bestResult.criteria ? cloneDeep(bestResult) : (topResults[0] ? cloneDeep(topResults[0]) : null);

@@ -1,5 +1,13 @@
 window.statisticsTab = (() => {
 
+    // Helper zur Erstellung der Cross-Validation Tooltips aus der Config
+    function getCVTooltip(key) {
+        const t = window.APP_CONFIG.UI_TEXTS.tooltips.crossValidation[key];
+        if (!t) return '';
+        // Tippy-Content formatieren: Titel fett, dann Text
+        return `<strong>${t.title}</strong><br>${t.text}`;
+    }
+
     function createDescriptiveStatsContentHTML(stats, indexSuffix, cohortId) {
         if (!stats || !stats.descriptive || !stats.descriptive.patientCount) return '<p class="text-muted small p-3">No descriptive data available.</p>';
         const d = stats.descriptive;
@@ -183,6 +191,7 @@ window.statisticsTab = (() => {
     function createValidationStatsHTML(cvStats) {
         if (!cvStats) return '<p class="text-muted small p-2">No cross-validation data available.</p>';
         const na = window.APP_CONFIG.NA_PLACEHOLDER;
+        const descText = window.APP_CONFIG.UI_TEXTS.tooltips.crossValidation.description;
         
         let foldsHtml = '';
         if (cvStats.details && Array.isArray(cvStats.details)) {
@@ -198,37 +207,52 @@ window.statisticsTab = (() => {
 
         return `
             <div class="row g-2">
-                <div class="col-12 mb-2">
-                    <div class="alert alert-info py-2 small mb-0">
-                        <strong>Results of ${cvStats.folds}-Fold Cross-Validation:</strong>
-                        To address potential overfitting of cohort-optimised criteria, the dataset was split into ${cvStats.folds} folds. In each iteration, the optimal T2 criteria were identified on the training folds and evaluated on the test fold.
+                <div class="col-12 mb-3">
+                    <div class="alert alert-light border-start border-4 border-info shadow-sm py-2 small mb-0">
+                        <div class="d-flex align-items-start">
+                             <i class="bi bi-info-circle-fill text-info me-2 mt-1"></i>
+                             <div>${descText}</div>
+                        </div>
                     </div>
                 </div>
                 <div class="col-12">
+                     <h6 class="small fw-bold text-uppercase text-muted mb-2">Overall Performance (Mean of 5 Folds)</h6>
                      <div class="table-responsive">
                         <table class="table table-sm table-striped small mb-0">
                             <thead>
-                                <tr><th>Metric</th><th>Value</th></tr>
+                                <tr>
+                                    <th style="width: 50%;">Metric</th>
+                                    <th>Value</th>
+                                </tr>
                             </thead>
                             <tbody>
-                                <tr class="fw-bold">
-                                    <td>Mean AUC</td>
-                                    <td>${formatNumber(cvStats.meanAUC, 3, na)}</td>
+                                <tr>
+                                    <td data-tippy-content="${getCVTooltip('meanAUC')}">
+                                        Mean AUC <i class="bi bi-question-circle text-muted ms-1" style="font-size: 0.8em;"></i>
+                                    </td>
+                                    <td class="fw-bold">${formatNumber(cvStats.meanAUC, 3, na)}</td>
                                 </tr>
                                 <tr>
-                                    <td>Standard Deviation (SD)</td>
+                                    <td data-tippy-content="${getCVTooltip('sdAUC')}">
+                                        Standard Deviation (SD) <i class="bi bi-question-circle text-muted ms-1" style="font-size: 0.8em;"></i>
+                                    </td>
                                     <td>${formatNumber(cvStats.sdAUC, 3, na)}</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-                <div class="col-12 mt-2">
-                    <h6 class="small fw-bold mb-1">Individual Fold Performance</h6>
-                    <div class="table-responsive" style="max-height: 150px; overflow-y: auto;">
-                        <table class="table table-sm table-bordered small mb-0">
+                <div class="col-12 mt-3">
+                    <h6 class="small fw-bold text-uppercase text-muted mb-2">Detailed Fold Performance</h6>
+                    <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered table-hover small mb-0 text-center">
                             <thead class="table-light sticky-top">
-                                <tr><th>Fold</th><th>AUC</th><th>Test N</th><th>Cut-off</th></tr>
+                                <tr>
+                                    <th data-tippy-content="${getCVTooltip('fold')}">Fold</th>
+                                    <th data-tippy-content="${getDefinitionTooltip('auc')}">AUC</th>
+                                    <th data-tippy-content="${getCVTooltip('testN')}">Test N</th>
+                                    <th data-tippy-content="${getCVTooltip('cutoff')}">Optimal Cut-off</th>
+                                </tr>
                             </thead>
                             <tbody>${foldsHtml}</tbody>
                         </table>
@@ -366,7 +390,9 @@ window.statisticsTab = (() => {
                 innerContainer.innerHTML += window.uiComponents.createStatisticsCard(`comparison-as-t2-${i}`, `Statistical Comparison: AS vs. Applied T2 Criteria`, createCompTableHTML(stats.comparisonASvsT2Applied), false, null, cohortId);
                 
                 if (stats.crossValidation) {
-                    innerContainer.innerHTML += window.uiComponents.createStatisticsCard(`validation-cv-${i}`, 'Validated T2 Benchmark (5-Fold CV)', createValidationStatsHTML(stats.crossValidation), false, null, cohortId);
+                    // Nutzung des neuen Config-Tooltips 'cardTitle'
+                    const cvTitle = window.APP_CONFIG.UI_TEXTS.tooltips.crossValidation.cardTitle || 'Validated T2 Benchmark (5-Fold CV)';
+                    innerContainer.innerHTML += window.uiComponents.createStatisticsCard(`validation-cv-${i}`, cvTitle, createValidationStatsHTML(stats.crossValidation), false, null, cohortId);
                 }
 
                 innerContainer.innerHTML += window.uiComponents.createStatisticsCard(`associations-${i}`, 'Association with N-Status', createAssocTableHTML(stats.associationsApplied, appliedCriteria), false, null, cohortId);
