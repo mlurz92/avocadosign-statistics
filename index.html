@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avocado Sign vs. T2 Criteria Analysis v5.3.0-ajr-analysis-only</title>
+
+    <meta name="theme-color" content="#005f73"/>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Nodal Staging">
+    <link rel="apple-touch-icon" href="data/logo-192.png">
+
+    <link rel="manifest" href="manifest.json">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data/logo.svg">
+
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" defer></script>
+    <script src="https://unpkg.com/tippy.js@6" defer></script>
+</head>
+<body>
+    <header class="fixed-top shadow-sm">
+        <div class="container-fluid">
+             <h1 class="app-title">Nodal Staging: Avocado Sign vs. T2</h1>
+             <div class="d-flex align-items-center ms-auto">
+                <button class="btn btn-sm btn-outline-secondary me-2" id="btn-quick-guide" data-tippy-content="Show Quick Guide">
+                    <i class="fas fa-question-circle"></i>
+                </button>
+                <div class="btn-group" role="group" aria-label="Cohort Selection" data-tippy-content="Select the patient cohort for analysis.">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btn-cohort-Overall" data-cohort="Overall">Overall</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btn-cohort-surgeryAlone" data-cohort="surgeryAlone">Surgery alone</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btn-cohort-neoadjuvantTherapy" data-cohort="neoadjuvantTherapy">Neoadjuvant therapy</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <nav class="navigation-tabs shadow-sm">
+        <div class="container-fluid">
+            <ul class="nav nav-tabs" id="main-tabs" role="tablist">
+                <li class="nav-item" role="presentation"><button class="nav-link" id="data-tab" data-bs-toggle="tab" data-bs-target="#data-pane" type="button" role="tab"><i class="fas fa-database fa-fw me-1"></i>Data</button></li>
+                <li class="nav-item" role="presentation"><button class="nav-link active" id="analysis-tab" data-bs-toggle="tab" data-bs-target="#analysis-pane" type="button" role="tab"><i class="fas fa-tasks fa-fw me-1"></i>Analysis</button></li>
+                <li class="nav-item" role="presentation"><button class="nav-link" id="statistics-tab" data-bs-toggle="tab" data-bs-target="#statistics-pane" type="button" role="tab"><i class="fas fa-chart-bar fa-fw me-1"></i>Statistics</button></li>
+                <li class="nav-item" role="presentation"><button class="nav-link" id="comparison-tab" data-bs-toggle="tab" data-bs-target="#comparison-pane" type="button" role="tab"><i class="fas fa-chart-line fa-fw me-1"></i>Comparison</button></li>
+                <li class="nav-item" role="presentation"><button class="nav-link" id="insights-tab" data-bs-toggle="tab" data-bs-target="#insights-pane" type="button" role="tab"><i class="fas fa-lightbulb fa-fw me-1"></i>Insights</button></li>
+                <li class="nav-item" role="presentation"><button class="nav-link" id="export-tab" data-bs-toggle="tab" data-bs-target="#export-pane" type="button" role="tab"><i class="fas fa-download fa-fw me-1"></i>Export</button></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="container-fluid main-content" id="app-container">
+        <div class="tab-content" id="main-tab-content">
+            <section class="tab-pane fade" id="data-pane" role="tabpanel" aria-labelledby="data-tab" tabindex="0"><p class="text-center p-5 text-muted">Loading Patient Data...</p></section>
+            <section class="tab-pane fade show active" id="analysis-pane" role="tabpanel" aria-labelledby="analysis-tab" tabindex="0"><p class="text-center p-5 text-muted">Loading Analysis Tools...</p></section>
+            <section class="tab-pane fade" id="statistics-pane" role="tabpanel" aria-labelledby="statistics-tab" tabindex="0"><p class="text-center p-5 text-muted">Loading Statistics...</p></section>
+            <section class="tab-pane fade" id="comparison-pane" role="tabpanel" aria-labelledby="comparison-tab" tabindex="0"><p class="text-center p-5 text-muted">Loading Comparison View...</p></section>
+            <section class="tab-pane fade" id="insights-pane" role="tabpanel" aria-labelledby="insights-tab" tabindex="0"><p class="text-center p-5 text-muted">Loading Insights...</p></section>
+            <section class="tab-pane fade" id="export-pane" role="tabpanel" aria-labelledby="export-tab" tabindex="0"><p class="text-center p-5 text-muted">Loading Export Tools...</p></section>
+        </div>
+    </main>
+
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100"><div id="toast-container"></div></div>
+
+    <div class="modal fade" id="brute-force-modal" tabindex="-1" aria-labelledby="bruteForceModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content modal-glass">
+          <div class="modal-header"><h5 class="modal-title" id="bruteForceModalLabel">Brute-Force Optimization Results</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+          <div class="modal-body" id="brute-force-modal-body"><p class="text-center text-muted">Results will be loaded here...</p></div>
+          <div class="modal-footer"><button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="modal fade" id="quick-guide-modal" tabindex="-1" aria-labelledby="quickGuideModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content modal-glass">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="quickGuideModalLabel"><i class="fas fa-question-circle me-2"></i>Quick Guide</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>Global Controls & Analysis Context</h6>
+                    <p class="small">Use the buttons in the top header to select the patient <strong>Global Cohort</strong> for general exploration in the Data and Analysis tabs. For specific, methodologically valid comparisons (e.g., in the Comparison tab), the application automatically activates an <strong>Analysis Context</strong>. This locks the cohort to the appropriate group for the selected comparison (e.g., 'Surgery alone' for ESGAR criteria) and temporarily disables the global cohort buttons to ensure scientific rigor.</p>
+                    <hr>
+                    <h6>Tabs Overview</h6>
+                    <dl class="row small">
+                        <dt class="col-sm-3"><i class="fas fa-database fa-fw me-1"></i>Data</dt>
+                        <dd class="col-sm-9">View and sort the raw patient data based on the selected Global Cohort. Click on a row to expand and see individual T2 lymph node features.</dd>
+
+                        <dt class="col-sm-3"><i class="fas fa-tasks fa-fw me-1"></i>Analysis</dt>
+                        <dd class="col-sm-9">Interactively define T2 malignancy criteria and see their real-time impact on diagnostic performance for the selected Global Cohort. Run the <strong>Brute-Force Optimization</strong> to find the mathematically best criteria for a selected metric.</dd>
+
+                        <dt class="col-sm-3"><i class="fas fa-chart-bar fa-fw me-1"></i>Statistics</dt>
+                        <dd class="col-sm-9">Get a comprehensive statistical breakdown. In 'Single View', it uses the Global Cohort. In 'Comparison View', you can select two cohorts for a direct comparison.</dd>
+
+                        <dt class="col-sm-3"><i class="fas fa-chart-line fa-fw me-1"></i>Comparison</dt>
+                        <dd class="col-sm-9">Visually compare the performance of the Avocado Sign against either your currently applied T2 criteria or established criteria from the literature. This tab uses the <strong>Analysis Context</strong> to ensure all comparisons are performed on the correct, methodologically sound patient cohort.</dd>
+
+                        <dt class="col-sm-3"><i class="fas fa-lightbulb fa-fw me-1"></i>Insights</dt>
+                        <dd class="col-sm-9">Perform advanced analyses such as Post-hoc Power Analysis, Mismatch Analysis to compare methods, and Feature Importance to understand the contribution of individual T2 criteria.</dd>
+                        
+                        <dt class="col-sm-3"><i class="fas fa-download fa-fw me-1"></i>Export</dt>
+                        <dd class="col-sm-9">Export the analysis results, tables, and charts in various formats (SVG) for use in other applications.</dd>
+                    </dl>
+                    <hr>
+                    <p class="small text-muted"><strong>Disclaimer:</strong> This is a research tool only. Do not use for clinical diagnosis or treatment decisions.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Got it!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="auto-bf-prompt-modal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="autoBfPromptModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content modal-glass">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="autoBfPromptModalLabel"><i class="fas fa-cogs me-2"></i>Initial Analysis Setup</h5>
+                </div>
+                <div class="modal-body">
+                    <p>Welcome! It looks like this is your first time running the analysis, or the cached results are missing.</p>
+                    <p>To enable all analysis features, the application needs to perform a one-time "Brute-Force Optimization" for each patient cohort. This process may take a few minutes depending on your computer's performance.</p>
+                    <p class="fw-bold">Would you like to run this initial analysis now?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btn-decline-auto-bf">No, I'll do it manually later</button>
+                    <button type="button" class="btn btn-primary" id="btn-confirm-auto-bf"><i class="fas fa-rocket me-2"></i>Yes, start the analysis</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="auto-bf-progress-modal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="autoBfProgressModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content modal-glass">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="autoBfProgressModalLabel"><i class="fas fa-sync-alt fa-spin me-2"></i>Performing Initial Analysis...</h5>
+                </div>
+                <div class="modal-body text-center">
+                    <p>Please wait while the application calculates the optimal T2 criteria for each cohort. This should not be interrupted.</p>
+                    <div id="auto-bf-progress-status" class="mt-3">
+                        <p class="mb-1">Initializing...</p>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="hidden-chart-export-container" style="position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; overflow: hidden;"></div>
+
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="data/data.js"></script>
+    
+    <script src="js/core/data_processor.js"></script>
+    <script src="js/core/t2_criteria_manager.js"></script>
+    <script src="js/core/study_criteria_manager.js"></script>
+
+    <script src="js/services/statistics_service.js"></script>
+    <script src="js/services/brute_force_manager.js"></script>
+    <script src="js/services/export_service.js"></script>
+    
+    <script src="js/ui/components/ui_components.js"></script>
+    <script src="js/ui/components/table_renderer.js"></script>
+    <script src="js/ui/components/chart_renderer.js"></script>
+    <script src="js/ui/components/flowchart_renderer.js"></script>
+    
+    <script src="js/ui/tabs/data_tab.js"></script>
+    <script src="js/ui/tabs/analysis_tab.js"></script>
+    <script src="js/ui/tabs/statistics_tab.js"></script>
+    <script src="js/ui/tabs/comparison_tab.js"></script>
+    <script src="js/ui/tabs/insights_tab.js"></script>
+    <script src="js/ui/tabs/export_tab.js"></script>
+
+    <script src="js/ui/ui_manager.js"></script>
+    
+    <script src="js/app/state.js"></script>
+    <script src="js/app/main.js"></script>
+    
+    <script src="js/ui/event_manager.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const app = new App();
+            app.init();
+        });
+    </script>
+
+</body>
+</html>
