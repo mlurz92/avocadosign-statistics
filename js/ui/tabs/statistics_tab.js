@@ -114,6 +114,26 @@ window.statisticsTab = (() => {
         addResults(litNeoadjuvant, 'Literature-Based T2 Criteria (Neoadjuvant-therapy Cohort)');
         addResults(litOverall, 'Literature-Based T2 Criteria (Overall Cohort)');
 
+        const cvRows = [];
+        Object.keys(allStats).forEach(cohortId => {
+            const stats = allStats[cohortId];
+            if (stats && stats.crossValidation) {
+                const cv = stats.crossValidation;
+                const meanAuc = formatNumber(cv.meanAUC, 3);
+                const sdAuc = formatNumber(cv.sdAUC, 3);
+                const folds = cv.folds;
+                const row = {
+                    name: `Cohort-Optimised T2 (${folds}-Fold CV)<br><em class="text-muted small fw-normal">(Cohort: ${getCohortDisplayName(cohortId)})</em>`,
+                    isPlaceholder: false,
+                    auc: { value: cv.meanAUC, ci: { lower: cv.meanAUC - cv.sdAUC, upper: cv.meanAUC + cv.sdAUC }, customLabel: `${meanAuc} (SD: ${sdAuc})` },
+                    sens: { value: NaN }, spec: { value: NaN }, ppv: { value: NaN }, npv: { value: NaN },
+                    pValue: undefined
+                };
+                cvRows.push(row);
+            }
+        });
+        addResults(cvRows, 'Internal Validation (Cross-Validation)');
+
         if (results.length === 0) return '<p class="text-muted small p-3">No criteria comparison data.</p>';
         
         let tableHtml = `<div class="table-responsive"><table class="table table-sm table-striped small mb-0"><thead><tr>
@@ -122,7 +142,7 @@ window.statisticsTab = (() => {
             <th data-tippy-content="${getDefinitionTooltip('spec')}">Spec. (95% CI)</th>
             <th data-tippy-content="${getDefinitionTooltip('ppv')}">PPV (95% CI)</th>
             <th data-tippy-content="${getDefinitionTooltip('npv')}">NPV (95% CI)</th>
-            <th data-tippy-content="${getDefinitionTooltip('auc')}">AUC (95% CI)</th>
+            <th data-tippy-content="${getDefinitionTooltip('auc')}">AUC (95% CI / SD)</th>
             <th data-tippy-content="${getDefinitionTooltip('pValue')}">p-Value (vs AS)</th>
         </tr></thead><tbody>`;
 
@@ -139,20 +159,83 @@ window.statisticsTab = (() => {
 
             const pValueTooltip = (r.pValue !== undefined) ? getInterpretationTooltip('pValue', {value: r.pValue, testName: 'DeLong'}, {comparisonName: 'AUC', method1: 'AS', method2: r.name}) : 'Comparison not applicable';
             const pValueCellContent = (r.pValue !== undefined) ? `${getPValueText(r.pValue, false)} ${getStatisticalSignificanceSymbol(r.pValue)}` : na_stat;
+            
+            const formatMetric = (metric, key) => {
+                 if (metric && metric.customLabel) return metric.customLabel;
+                 return formatCI(metric?.value, metric?.ci?.lower, metric?.ci?.upper, key === 'auc' ? 3 : 1, key !== 'auc', na_stat);
+            };
 
             tableHtml += `<tr>
                 <td>${r.name}</td>
-                <td data-tippy-content="${getInterpretationTooltip('sens', r.sens)}">${formatCI(r.sens?.value, r.sens?.ci?.lower, r.sens?.ci?.upper, 1, true, na_stat)}</td>
-                <td data-tippy-content="${getInterpretationTooltip('spec', r.spec)}">${formatCI(r.spec?.value, r.spec?.ci?.lower, r.spec?.ci?.upper, 1, true, na_stat)}</td>
-                <td data-tippy-content="${getInterpretationTooltip('ppv', r.ppv)}">${formatCI(r.ppv?.value, r.ppv?.ci?.lower, r.ppv?.ci?.upper, 1, true, na_stat)}</td>
-                <td data-tippy-content="${getInterpretationTooltip('npv', r.npv)}">${formatCI(r.npv?.value, r.npv?.ci?.lower, r.npv?.ci?.upper, 1, true, na_stat)}</td>
-                <td data-tippy-content="${getInterpretationTooltip('auc', r.auc)}">${formatCI(r.auc?.value, r.auc?.ci?.lower, r.auc?.ci?.upper, 3, false, na_stat)}</td>
+                <td data-tippy-content="${getInterpretationTooltip('sens', r.sens)}">${formatMetric(r.sens, 'sens')}</td>
+                <td data-tippy-content="${getInterpretationTooltip('spec', r.spec)}">${formatMetric(r.spec, 'spec')}</td>
+                <td data-tippy-content="${getInterpretationTooltip('ppv', r.ppv)}">${formatMetric(r.ppv, 'ppv')}</td>
+                <td data-tippy-content="${getInterpretationTooltip('npv', r.npv)}">${formatMetric(r.npv, 'npv')}</td>
+                <td data-tippy-content="${getInterpretationTooltip('auc', r.auc)}">${formatMetric(r.auc, 'auc')}</td>
                 <td data-tippy-content="${pValueTooltip}">${pValueCellContent}</td>
             </tr>`;
         });
 
         tableHtml += `</tbody></table></div>`;
         return tableHtml;
+    }
+
+    function createValidationStatsHTML(cvStats) {
+        if (!cvStats) return '<p class="text-muted small p-2">No cross-validation data available.</p>';
+        const na = window.APP_CONFIG.NA_PLACEHOLDER;
+        
+        let foldsHtml = '';
+        if (cvStats.details && Array.isArray(cvStats.details)) {
+            foldsHtml = cvStats.details.map((fold, idx) => `
+                <tr>
+                    <td>Fold ${idx + 1}</td>
+                    <td>${formatNumber(fold.auc, 3, na)}</td>
+                    <td>n=${fold.nTest}</td>
+                    <td class="text-muted small">${JSON.stringify(fold.bestConfig?.criteria?.size?.threshold) || '?'}mm</td>
+                </tr>
+            `).join('');
+        }
+
+        return `
+            <div class="row g-2">
+                <div class="col-12 mb-2">
+                    <div class="alert alert-info py-2 small mb-0">
+                        <strong>Results of ${cvStats.folds}-Fold Cross-Validation:</strong>
+                        To address potential overfitting of cohort-optimised criteria, the dataset was split into ${cvStats.folds} folds. In each iteration, the optimal T2 criteria were identified on the training folds and evaluated on the test fold.
+                    </div>
+                </div>
+                <div class="col-12">
+                     <div class="table-responsive">
+                        <table class="table table-sm table-striped small mb-0">
+                            <thead>
+                                <tr><th>Metric</th><th>Value</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr class="fw-bold">
+                                    <td>Mean AUC</td>
+                                    <td>${formatNumber(cvStats.meanAUC, 3, na)}</td>
+                                </tr>
+                                <tr>
+                                    <td>Standard Deviation (SD)</td>
+                                    <td>${formatNumber(cvStats.sdAUC, 3, na)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="col-12 mt-2">
+                    <h6 class="small fw-bold mb-1">Individual Fold Performance</h6>
+                    <div class="table-responsive" style="max-height: 150px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered small mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr><th>Fold</th><th>AUC</th><th>Test N</th><th>Cut-off</th></tr>
+                            </thead>
+                            <tbody>${foldsHtml}</tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     function render(processedData, appliedCriteria, appliedLogic, layout, cohort1, cohort2, globalCohort) {
@@ -281,6 +364,11 @@ window.statisticsTab = (() => {
                 innerContainer.innerHTML += window.uiComponents.createStatisticsCard(`performance-as-${i}`, 'Diagnostic Performance: Avocado Sign (vs. N)', createPerfTableHTML(stats.performanceAS), false, null, cohortId);
                 innerContainer.innerHTML += window.uiComponents.createStatisticsCard(`performance-t2-${i}`, `Diagnostic Performance: ${formattedAppliedT2Long} vs. N`, createPerfTableHTML(stats.performanceT2Applied), false, null, cohortId);
                 innerContainer.innerHTML += window.uiComponents.createStatisticsCard(`comparison-as-t2-${i}`, `Statistical Comparison: AS vs. Applied T2 Criteria`, createCompTableHTML(stats.comparisonASvsT2Applied), false, null, cohortId);
+                
+                if (stats.crossValidation) {
+                    innerContainer.innerHTML += window.uiComponents.createStatisticsCard(`validation-cv-${i}`, 'Validated T2 Benchmark (5-Fold CV)', createValidationStatsHTML(stats.crossValidation), false, null, cohortId);
+                }
+
                 innerContainer.innerHTML += window.uiComponents.createStatisticsCard(`associations-${i}`, 'Association with N-Status', createAssocTableHTML(stats.associationsApplied, appliedCriteria), false, null, cohortId);
                 if (cohortId === 'surgeryAlone') {
                     innerContainer.innerHTML += window.uiComponents.createStatisticsCard(`added-value-${i}`, 'Added Diagnostic Value of AS (vs. ESGAR 2016)', addedValueContent, false, 'addedValue', cohortId);

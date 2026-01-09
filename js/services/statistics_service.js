@@ -1,5 +1,7 @@
 window.statisticsService = (() => {
 
+    // --- Basic Statistical Helper Functions ---
+
     function getMedian(arr) {
         if (!Array.isArray(arr) || arr.length === 0) return NaN;
         const sortedArr = arr.map(x => parseFloat(x)).filter(x => !isNaN(x) && isFinite(x)).sort((a, b) => a - b);
@@ -47,6 +49,8 @@ window.statisticsService = (() => {
             q3: getQuartileValue(q3Index)
         };
     }
+
+    // --- Distributions & Tests ---
 
     function erf(x) {
         const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
@@ -487,7 +491,7 @@ window.statisticsService = (() => {
 
         const t = (mean1 - mean2) / se_diff;
         const df_num = Math.pow(var1 / n1 + var2 / n2, 2);
-        const df_den = (Math.pow(var1 / n1, 2) / (n1 - 1)) + (Math.pow(var2 / n2, 2) / (n2 - 1));
+        const df_den = (Math.pow(var2 / n1, 2) / (n1 - 1)) + (Math.pow(var2 / n2, 2) / (n2 - 1));
         const df = df_den > 0 ? df_num / df_den : 1;
         
         const pValue = 2 * tDistributionCDF(-Math.abs(t), df);
@@ -509,7 +513,207 @@ window.statisticsService = (() => {
         const pValue = 2.0 * normalCDF(-Math.abs(z));
         return { pValue, Z: z, diffAUC: diff, method: "Z-Test for Independent AUCs" };
     }
-    
+
+    // --- REVISED Cross-Validation Logic with Exhaustive Grid Search ---
+
+    function _fastAUC(predictions, actuals) {
+        let n_pos = 0, n_neg = 0;
+        for (let i = 0; i < actuals.length; i++) {
+            if (actuals[i] === 1) n_pos++;
+            else if (actuals[i] === 0) n_neg++;
+        }
+        if (n_pos === 0 || n_neg === 0) return 0.5;
+
+        let correctPairs = 0;
+        for (let i = 0; i < predictions.length; i++) {
+            if (actuals[i] !== 1) continue; 
+            for (let j = 0; j < predictions.length; j++) {
+                if (actuals[j] !== 0) continue;
+                if (predictions[i] > predictions[j]) correctPairs += 1;
+                else if (predictions[i] === predictions[j]) correctPairs += 0.5;
+            }
+        }
+        return correctPairs / (n_pos * n_neg);
+    }
+
+    /**
+     * Performs an exhaustive grid search to find optimal T2 criteria on the training set.
+     * This replicates the full search space of the Brute Force Worker but runs synchronously.
+     * @param {Array} trainingData - The subset of patients to train on.
+     * @returns {Object} Best config found ({ logic, criteria, bestAUC }).
+     */
+    function _performExhaustiveGridSearchSync(trainingData) {
+        // Pre-process patient data into a highly efficient structure for millions of checks
+        const patients = trainingData.map(p => ({
+            n: p.nStatus === '+' ? 1 : 0,
+            nodes: (p.t2Nodes || []).map(n => ({
+                size: n.size || 0,
+                // Pre-calculate feature booleans to avoid string comparisons in the loop
+                shape: n.shape === 'round',
+                border: n.border === 'irregular',
+                homogeneity: n.homogeneity === 'heterogeneous',
+                signal: n.signal === 'intermediate' || n.signal === 'high' 
+            }))
+        }));
+
+        // Retrieve search ranges dynamically from Global Config
+        const sizeSettings = window.APP_CONFIG.T2_CRITERIA_SETTINGS.SIZE_RANGE;
+        const minSize = sizeSettings.min;
+        const maxSize = sizeSettings.max;
+        const stepSize = sizeSettings.step;
+        
+        const sizeThresholds = [];
+        for (let s = minSize; s <= maxSize; s += stepSize) {
+            sizeThresholds.push(parseFloat(s.toFixed(1))); // Avoid FP precision issues
+        }
+
+        const logics = ['AND', 'OR'];
+        
+        let bestAUC = -1;
+        let bestConfig = null;
+
+        // Reusable arrays for predictions to avoid GC pressure
+        const preds = new Uint8Array(patients.length);
+        const actuals = new Uint8Array(patients.length);
+        
+        // Fill actuals once
+        for(let i=0; i<patients.length; i++) actuals[i] = patients[i].n;
+
+        // --- Exhaustive Search Loops ---
+        // 1. Logic (AND/OR)
+        for (const logic of logics) {
+            // 2. Feature Combinations (Power Set of 4 features)
+            // 0=None, 1=Shape, 2=Border, 4=Homogeneity, 8=Signal ... 15=All
+            for (let i = 0; i < 16; i++) {
+                const useShape = (i & 1) !== 0;
+                const useBorder = (i & 2) !== 0;
+                const useHomogeneity = (i & 4) !== 0;
+                const useSignal = (i & 8) !== 0;
+
+                // 3. Size Thresholds
+                for (const sizeThreshold of sizeThresholds) {
+                    
+                    // Evaluate current combination on all patients
+                    for (let pIdx = 0; pIdx < patients.length; pIdx++) {
+                        const p = patients[pIdx];
+                        let isPatientPositive = false;
+                        
+                        if (p.nodes.length > 0) {
+                             for (const node of p.nodes) {
+                                 // Check criteria for this node
+                                 const sizePass = node.size >= sizeThreshold;
+                                 
+                                 // Only check active features
+                                 const activeChecks = [sizePass];
+                                 if (useShape) activeChecks.push(node.shape); 
+                                 if (useBorder) activeChecks.push(node.border);
+                                 if (useHomogeneity) activeChecks.push(node.homogeneity);
+                                 if (useSignal) activeChecks.push(node.signal);
+
+                                 let nodePos = false;
+                                 if (logic === 'AND') {
+                                     // All active criteria must be met
+                                     nodePos = true;
+                                     for(let k=0; k<activeChecks.length; k++) {
+                                         if(!activeChecks[k]) { nodePos = false; break; }
+                                     }
+                                 } else {
+                                     // At least one active criterion must be met
+                                     nodePos = false;
+                                     for(let k=0; k<activeChecks.length; k++) {
+                                         if(activeChecks[k]) { nodePos = true; break; }
+                                     }
+                                 }
+                                 
+                                 if (nodePos) {
+                                     isPatientPositive = true;
+                                     break; // Patient is positive if any node is positive
+                                 }
+                             }
+                        }
+                        preds[pIdx] = isPatientPositive ? 1 : 0;
+                    }
+                    
+                    const auc = _fastAUC(preds, actuals);
+                    
+                    // Store best result (maximize AUC)
+                    if (auc > bestAUC) {
+                        bestAUC = auc;
+                        bestConfig = {
+                            logic: logic,
+                            criteria: {
+                                size: { active: true, threshold: sizeThreshold, condition: '>=' },
+                                shape: { active: useShape, value: 'round' },
+                                border: { active: useBorder, value: 'irregular' },
+                                homogeneity: { active: useHomogeneity, value: 'heterogeneous' },
+                                signal: { active: useSignal, value: 'intermediate' } 
+                            }
+                        };
+                    }
+                }
+            }
+        }
+        return { bestAUC, bestConfig };
+    }
+
+    /**
+     * Performs Stratified k-Fold Cross-Validation.
+     * Within each fold, it executes a FULL synchronous grid search to find the optimal parameters
+     * for that training set, avoiding data leakage (optimism bias).
+     */
+    function performStratifiedKFoldCV(data, k = 5) {
+        if (!Array.isArray(data) || data.length < k) return null;
+
+        // Stratification: Ensure balanced N+ / N- distribution in folds
+        const positives = data.filter(p => p.nStatus === '+');
+        const negatives = data.filter(p => p.nStatus === '-');
+        
+        const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
+        const posShuffled = shuffle([...positives]);
+        const negShuffled = shuffle([...negatives]);
+
+        const folds = [];
+        for (let i = 0; i < k; i++) folds.push([]);
+
+        // Distribute stratified
+        posShuffled.forEach((p, i) => folds[i % k].push(p));
+        negShuffled.forEach((p, i) => folds[i % k].push(p));
+
+        const foldResults = [];
+
+        for (let i = 0; i < k; i++) {
+            const testSet = folds[i];
+            const trainSet = folds.filter((_, idx) => idx !== i).flat();
+
+            // 1. TRAIN: Find best parameters on Training Set (Exhaustive Search)
+            const { bestConfig } = _performExhaustiveGridSearchSync(trainSet);
+            
+            // 2. TEST: Evaluate these parameters on unseen Test Set
+            // Using standard manager for consistent evaluation
+            const evaluatedTestSet = window.t2CriteriaManager.evaluateDataset(cloneDeep(testSet), bestConfig.criteria, bestConfig.logic);
+            const perf = calculateDiagnosticPerformance(evaluatedTestSet, 't2Status', 'nStatus');
+            
+            foldResults.push({
+                auc: perf.auc.value,
+                bestConfig: bestConfig,
+                nTest: testSet.length
+            });
+        }
+
+        const aucs = foldResults.map(r => r.auc);
+        const meanAUC = getMean(aucs);
+        const sdAUC = getStdDev(aucs);
+
+        return {
+            meanAUC,
+            sdAUC,
+            folds: k,
+            details: foldResults
+        };
+    }
+
+    // --- Main Service Logic ---
+
     function calculateAllPublicationStats(data, appliedT2Criteria, appliedT2Logic, allBruteForceResults) {
         if (!data || !Array.isArray(data)) return null;
         const results = {};
@@ -535,7 +739,9 @@ window.statisticsService = (() => {
                 bruteforceDefinitions: {},
                 addedValueAnalysis: {},
                 associationsApplied: {},
-                aggregateNodeCounts: calculateAggregateNodeCounts(evaluatedDataApplied)
+                aggregateNodeCounts: calculateAggregateNodeCounts(evaluatedDataApplied),
+                // NEW: Perform rigorous Cross-Validation if n >= 20
+                crossValidation: (cohortData.length >= 20) ? performStratifiedKFoldCV(cohortData, 5) : null
             };
             
             const featuresToTest = [
@@ -714,7 +920,8 @@ window.statisticsService = (() => {
         calculatePostHocPower,
         calculateRequiredSampleSize,
         calculateAssociationStats,
-        calculateAggregateNodeCounts
+        calculateAggregateNodeCounts,
+        performStratifiedKFoldCV
     });
 
 })();
